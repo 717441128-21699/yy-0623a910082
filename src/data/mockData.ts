@@ -1,0 +1,227 @@
+import type { Patient, VisitRecord, NursingItem, NursingAuditRecord, HandoverItem } from '../types';
+
+export const mockPatients: Patient[] = [
+  { id: 'P001', name: '张伟', phone: '13800138001', age: 35, gender: '男' },
+  { id: 'P002', name: '李娜', phone: '13800138002', age: 28, gender: '女' },
+  { id: 'P003', name: '王芳', phone: '13800138003', age: 45, gender: '女' },
+  { id: 'P004', name: '刘强', phone: '13800138004', age: 52, gender: '男' },
+  { id: 'P005', name: '陈静', phone: '13800138005', age: 31, gender: '女' },
+  { id: 'P006', name: '赵磊', phone: '13800138006', age: 38, gender: '男' },
+  { id: 'P007', name: '孙丽', phone: '13800138007', age: 42, gender: '女' },
+  { id: 'P008', name: '周明', phone: '13800138008', age: 29, gender: '男' },
+];
+
+const today = new Date().toISOString().split('T')[0];
+
+export const mockVisitRecords: VisitRecord[] = [
+  {
+    id: 'V001',
+    patientId: 'P001',
+    patientName: '张伟',
+    visitDate: today,
+    visitTime: '09:00',
+    registration: { completed: true, operator: '前台小王', time: '08:55' },
+    payment: { completed: true, amount: 580, operator: '前台小王', time: '09:45' },
+    treatment: {
+      completed: true,
+      items: [
+        { id: 'T001', name: '超声波洁牙', quantity: 1, price: 280 },
+        { id: 'T002', name: '抛光', quantity: 1, price: 300 },
+      ],
+      doctor: '张医生',
+      nurse: '李护士',
+      startTime: '09:05',
+      endTime: '09:40',
+    },
+    nextAppointment: { completed: true, date: '2026-07-20', time: '10:00', content: '复诊检查' },
+    status: 'completed',
+  },
+  {
+    id: 'V002',
+    patientId: 'P002',
+    patientName: '李娜',
+    visitDate: today,
+    visitTime: '10:00',
+    registration: { completed: true, operator: '前台小王', time: '09:50' },
+    payment: { completed: false },
+    treatment: {
+      completed: true,
+      items: [
+        { id: 'T003', name: '根管治疗', quantity: 1, price: 1500 },
+      ],
+      doctor: '王医生',
+      nurse: '张护士',
+      startTime: '10:05',
+      endTime: '11:20',
+    },
+    nextAppointment: { completed: false },
+    status: 'in_progress',
+  },
+  {
+    id: 'V003',
+    patientId: 'P003',
+    patientName: '王芳',
+    visitDate: today,
+    visitTime: '14:00',
+    registration: { completed: true, operator: '前台小李', time: '13:50' },
+    payment: { completed: true, amount: 3200, operator: '前台小李', time: '15:30' },
+    treatment: {
+      completed: true,
+      items: [
+        { id: 'T004', name: '种植牙手术', quantity: 1, price: 3200 },
+      ],
+      doctor: '陈医生',
+      nurse: '王护士',
+      startTime: '14:00',
+      endTime: '15:20',
+    },
+    nextAppointment: { completed: false },
+    status: 'completed',
+  },
+  {
+    id: 'V004',
+    patientId: 'P004',
+    patientName: '刘强',
+    visitDate: today,
+    visitTime: '15:00',
+    registration: { completed: true, operator: '前台小李', time: '14:55' },
+    payment: { completed: false },
+    treatment: {
+      completed: false,
+      items: [],
+      doctor: '张医生',
+      nurse: '李护士',
+      startTime: '15:05',
+    },
+    nextAppointment: { completed: false },
+    status: 'in_progress',
+  },
+  {
+    id: 'V005',
+    patientId: 'P005',
+    patientName: '陈静',
+    visitDate: today,
+    visitTime: '16:00',
+    registration: { completed: false },
+    payment: { completed: false },
+    treatment: {
+      completed: false,
+      items: [],
+    },
+    nextAppointment: { completed: false },
+    status: 'pending',
+  },
+];
+
+export const nursingItems: NursingItem[] = [
+  { id: 'N001', name: '消毒追溯记录完整', category: '消毒追溯' },
+  { id: 'N002', name: '消毒日期在有效期内', category: '消毒追溯' },
+  { id: 'N003', name: '器械包编号清晰可查', category: '器械包' },
+  { id: 'N004', name: '器械包外包装完好', category: '器械包' },
+  { id: 'N005', name: '术后注意事项已告知', category: '术后告知' },
+  { id: 'N006', name: '患者已签字确认', category: '术后告知' },
+  { id: 'N007', name: '椅旁照片已归档', category: '影像归档' },
+  { id: 'N008', name: 'X光片已上传系统', category: '影像归档' },
+];
+
+export const mockNursingAudits: NursingAuditRecord[] = [
+  {
+    id: 'A001',
+    visitId: 'V001',
+    patientName: '张伟',
+    auditDate: today,
+    auditor: '护士长刘姐',
+    items: [
+      { itemId: 'N001', itemName: '消毒追溯记录完整', passed: true, remedied: false },
+      { itemId: 'N002', itemName: '消毒日期在有效期内', passed: true, remedied: false },
+      { itemId: 'N003', itemName: '器械包编号清晰可查', passed: false, reason: '编号模糊不清', remedyPerson: '李护士', remedied: false },
+      { itemId: 'N004', itemName: '器械包外包装完好', passed: true, remedied: false },
+      { itemId: 'N005', itemName: '术后注意事项已告知', passed: true, remedied: false },
+      { itemId: 'N006', itemName: '患者已签字确认', passed: false, reason: '患者匆忙离开未签字', remedyPerson: '张护士', remedied: false },
+      { itemId: 'N007', itemName: '椅旁照片已归档', passed: true, remedied: false },
+      { itemId: 'N008', itemName: 'X光片已上传系统', passed: true, remedied: false },
+    ],
+    status: '待整改',
+  },
+  {
+    id: 'A002',
+    visitId: 'V003',
+    patientName: '王芳',
+    auditDate: today,
+    auditor: '护士长刘姐',
+    items: [
+      { itemId: 'N001', itemName: '消毒追溯记录完整', passed: true, remedied: false },
+      { itemId: 'N002', itemName: '消毒日期在有效期内', passed: true, remedied: false },
+      { itemId: 'N003', itemName: '器械包编号清晰可查', passed: true, remedied: false },
+      { itemId: 'N004', itemName: '器械包外包装完好', passed: true, remedied: false },
+      { itemId: 'N005', itemName: '术后注意事项已告知', passed: true, remedied: false },
+      { itemId: 'N006', itemName: '患者已签字确认', passed: true, remedied: false },
+      { itemId: 'N007', itemName: '椅旁照片已归档', passed: false, reason: '照片导出失败', remedyPerson: '王护士', remedied: true, remedyTime: '16:00' },
+      { itemId: 'N008', itemName: 'X光片已上传系统', passed: false, reason: '系统网络问题', remedyPerson: '王护士', remedied: false },
+    ],
+    status: '整改中',
+  },
+];
+
+export const mockHandoverItems: HandoverItem[] = [
+  {
+    id: 'H001',
+    type: '未补签',
+    content: '治疗同意书需患者补签',
+    patientName: '李娜',
+    visitId: 'V002',
+    fromShift: '白班',
+    createTime: '17:30',
+    creator: '张护士',
+    handled: false,
+  },
+  {
+    id: 'H002',
+    type: '未回收同意书',
+    content: '手术知情同意书未回收归档',
+    patientName: '王芳',
+    visitId: 'V003',
+    fromShift: '白班',
+    createTime: '17:30',
+    creator: '张护士',
+    handled: true,
+    handleTime: '18:15',
+    handler: '李护士',
+    remark: '已从患者处回收并归档',
+  },
+  {
+    id: 'H003',
+    type: '未上传影像',
+    content: 'X光片未上传至系统',
+    patientName: '张伟',
+    visitId: 'V001',
+    fromShift: '白班',
+    createTime: '17:30',
+    creator: '张护士',
+    handled: false,
+  },
+  {
+    id: 'H004',
+    type: '其他',
+    content: '患者预约明天上午复诊，需提前准备器械',
+    patientName: '刘强',
+    visitId: 'V004',
+    fromShift: '白班',
+    createTime: '17:30',
+    creator: '张护士',
+    handled: false,
+  },
+];
+
+export const commonReasons = [
+  '患者匆忙离开',
+  '系统网络问题',
+  '设备故障',
+  '资料遗漏',
+  '人员交接失误',
+  '患者不配合',
+  '流程疏忽',
+  '其他原因',
+];
+
+export const nurses = ['李护士', '张护士', '王护士', '赵护士', '孙护士'];
