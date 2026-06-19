@@ -1,9 +1,12 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { mockNursingAudits, nursingItems, commonReasons, nurses } from '../data/mockData';
+import { loadFromStorage, saveToStorage, STORAGE_KEYS } from '../utils/storage';
 import type { NursingAuditRecord } from '../types';
 
 export default function ExceptionHandling() {
-  const [audits, setAudits] = useState<NursingAuditRecord[]>(mockNursingAudits);
+  const [audits, setAudits] = useState<NursingAuditRecord[]>(() =>
+    loadFromStorage(STORAGE_KEYS.NURSING_AUDITS, mockNursingAudits)
+  );
   const [selectedAudit, setSelectedAudit] = useState<NursingAuditRecord | null>(null);
   const [activeTab, setActiveTab] = useState<'list' | 'new'>('list');
   const [newAuditPatient, setNewAuditPatient] = useState('');
@@ -24,6 +27,11 @@ export default function ExceptionHandling() {
       remedyPerson: '',
     }))
   );
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.NURSING_AUDITS, audits);
+  }, [audits]);
 
   const stats = useMemo(() => {
     return {
@@ -70,30 +78,52 @@ export default function ExceptionHandling() {
       newItems[index].remedyPerson = '';
     }
     setNewAuditItems(newItems);
+    setValidationErrors([]);
   };
 
   const handleItemReasonChange = (index: number, reason: string) => {
     const newItems = [...newAuditItems];
     newItems[index].reason = reason;
     setNewAuditItems(newItems);
+    setValidationErrors([]);
   };
 
   const handleItemRemedyPersonChange = (index: number, person: string) => {
     const newItems = [...newAuditItems];
     newItems[index].remedyPerson = person;
     setNewAuditItems(newItems);
+    setValidationErrors([]);
+  };
+
+  const validateNewAudit = (): string[] => {
+    const errors: string[] = [];
+    if (!newAuditPatient.trim()) {
+      errors.push('请输入患者姓名');
+    }
+    newAuditItems.forEach((item) => {
+      if (!item.passed) {
+        if (!item.reason.trim()) {
+          errors.push(`「${item.itemName}」未填写不合格原因`);
+        }
+        if (!item.remedyPerson.trim()) {
+          errors.push(`「${item.itemName}」未指定补正人`);
+        }
+      }
+    });
+    return errors;
   };
 
   const handleCreateAudit = () => {
-    if (!newAuditPatient.trim()) {
-      alert('请输入患者姓名');
+    const errors = validateNewAudit();
+    if (errors.length > 0) {
+      setValidationErrors(errors);
       return;
     }
 
     const failedCount = newAuditItems.filter((item) => !item.passed).length;
     const newRecord: NursingAuditRecord = {
-      id: `A${String(audits.length + 1).padStart(3, '0')}`,
-      visitId: `V${String(Date.now()).slice(-3)}`,
+      id: `A${String(Date.now()).slice(-6)}`,
+      visitId: `V${String(Date.now()).slice(-6)}`,
       patientName: newAuditPatient,
       auditDate: new Date().toISOString().split('T')[0],
       auditor: '护士长刘姐',
@@ -119,16 +149,20 @@ export default function ExceptionHandling() {
         remedyPerson: '',
       }))
     );
+    setValidationErrors([]);
     setActiveTab('list');
   };
 
   const handleRemedyItem = (auditId: string, itemId: string) => {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+
     setAudits((prev) =>
       prev.map((audit) => {
         if (audit.id !== auditId) return audit;
         const updatedItems = audit.items.map((item) =>
           item.itemId === itemId
-            ? { ...item, remedied: true, remedyTime: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }
+            ? { ...item, remedied: true, remedyTime: timeStr }
             : item
         );
         const allRemedied = updatedItems
@@ -143,22 +177,19 @@ export default function ExceptionHandling() {
     );
 
     if (selectedAudit?.id === auditId) {
-      const updated = audits.find((a) => a.id === auditId);
-      if (updated) {
-        const updatedItems = updated.items.map((item) =>
-          item.itemId === itemId
-            ? { ...item, remedied: true, remedyTime: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) }
-            : item
-        );
-        const allRemedied = updatedItems
-          .filter((item) => !item.passed)
-          .every((item) => item.remedied);
-        setSelectedAudit({
-          ...updated,
-          items: updatedItems,
-          status: allRemedied ? '已完成' : '整改中',
-        });
-      }
+      const updatedItems = selectedAudit.items.map((item) =>
+        item.itemId === itemId
+          ? { ...item, remedied: true, remedyTime: timeStr }
+          : item
+      );
+      const allRemedied = updatedItems
+        .filter((item) => !item.passed)
+        .every((item) => item.remedied);
+      setSelectedAudit({
+        ...selectedAudit,
+        items: updatedItems,
+        status: allRemedied ? '已完成' : '整改中',
+      });
     }
   };
 
@@ -173,6 +204,7 @@ export default function ExceptionHandling() {
             onClick={() => {
               setActiveTab('list');
               setSelectedAudit(null);
+              setValidationErrors([]);
             }}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               activeTab === 'list'
@@ -183,7 +215,10 @@ export default function ExceptionHandling() {
             稽核记录
           </button>
           <button
-            onClick={() => setActiveTab('new')}
+            onClick={() => {
+              setActiveTab('new');
+              setValidationErrors([]);
+            }}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
               activeTab === 'new'
                 ? 'bg-blue-600 text-white'
@@ -227,48 +262,55 @@ export default function ExceptionHandling() {
           {!selectedAudit ? (
             <div className="flex-1 overflow-auto">
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                {audits.map((audit) => {
-                  const failedCount = audit.items.filter(
-                    (item) => !item.passed
-                  ).length;
-                  return (
-                    <div
-                      key={audit.id}
-                      onClick={() => setSelectedAudit(audit)}
-                      className="p-4 border-b border-gray-100 last:border-b-0 hover:bg-blue-50 cursor-pointer transition-colors"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-xl">
-                            {audit.patientName.charAt(0)}
+                {audits.length === 0 ? (
+                  <div className="p-12 text-center text-gray-400">
+                    <div className="text-4xl mb-2">📋</div>
+                    <p>暂无稽核记录，点击右上角"新建稽核"开始</p>
+                  </div>
+                ) : (
+                  audits.map((audit) => {
+                    const failedCount = audit.items.filter(
+                      (item) => !item.passed
+                    ).length;
+                    return (
+                      <div
+                        key={audit.id}
+                        onClick={() => setSelectedAudit(audit)}
+                        className="p-4 border-b border-gray-100 last:border-b-0 hover:bg-blue-50 cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-xl">
+                              {audit.patientName.charAt(0)}
+                            </div>
+                            <div>
+                              <div className="font-medium text-gray-800 text-lg">
+                                {audit.patientName}
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                稽核时间：{audit.auditDate} · {audit.auditor}
+                              </div>
+                            </div>
                           </div>
-                          <div>
-                            <div className="font-medium text-gray-800 text-lg">
-                              {audit.patientName}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              稽核时间：{audit.auditDate} · {audit.auditor}
-                            </div>
+                          <div className="text-right">
+                            <span
+                              className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
+                                audit.status
+                              )}`}
+                            >
+                              {audit.status}
+                            </span>
+                            {failedCount > 0 && (
+                              <div className="text-sm text-red-500 mt-1">
+                                {failedCount} 项不合格
+                              </div>
+                            )}
                           </div>
-                        </div>
-                        <div className="text-right">
-                          <span
-                            className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(
-                              audit.status
-                            )}`}
-                          >
-                            {audit.status}
-                          </span>
-                          {failedCount > 0 && (
-                            <div className="text-sm text-red-500 mt-1">
-                              {failedCount} 项不合格
-                            </div>
-                          )}
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             </div>
           ) : (
@@ -403,14 +445,31 @@ export default function ExceptionHandling() {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h3 className="text-lg font-bold text-gray-800 mb-4">新建稽核记录</h3>
 
+            {validationErrors.length > 0 && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-300 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-red-500 text-lg">⚠️</span>
+                  <span className="font-bold text-red-800">请完成以下必填项：</span>
+                </div>
+                <ul className="ml-7 text-sm text-red-600 space-y-1 list-disc">
+                  {validationErrors.map((error, index) => (
+                    <li key={index}>{error}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                患者姓名
+                患者姓名 <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 value={newAuditPatient}
-                onChange={(e) => setNewAuditPatient(e.target.value)}
+                onChange={(e) => {
+                  setNewAuditPatient(e.target.value);
+                  setValidationErrors([]);
+                }}
                 placeholder="请输入患者姓名"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
@@ -440,19 +499,32 @@ export default function ExceptionHandling() {
                         const auditItem = newAuditItems[itemIndex];
                         if (!auditItem) return null;
 
+                        const hasError = validationErrors.some(
+                          (e) => e.includes(item.name)
+                        );
+
                         return (
                           <div
                             key={item.id}
                             className={`p-4 border rounded-lg ${
-                              auditItem.passed
+                              hasError
+                                ? 'border-red-400 bg-red-50'
+                                : auditItem.passed
                                 ? 'border-gray-200'
                                 : 'border-red-300 bg-red-50'
                             }`}
                           >
                             <div className="flex items-center justify-between mb-3">
-                              <span className="font-medium text-gray-800">
-                                {item.name}
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-gray-800">
+                                  {item.name}
+                                </span>
+                                {hasError && (
+                                  <span className="text-xs text-red-500">
+                                    ⚠️ 需完善
+                                  </span>
+                                )}
+                              </div>
                               <div className="flex items-center gap-3">
                                 <label className="flex items-center gap-2 cursor-pointer">
                                   <input
@@ -489,7 +561,7 @@ export default function ExceptionHandling() {
                               <div className="space-y-3 pt-3 border-t border-red-200">
                                 <div>
                                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    常见原因
+                                    不合格原因 <span className="text-red-500">*</span>
                                   </label>
                                   <div className="flex flex-wrap gap-2">
                                     {commonReasons.map((reason) => (
@@ -526,7 +598,7 @@ export default function ExceptionHandling() {
                                 </div>
                                 <div>
                                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    指定补正人
+                                    指定补正人 <span className="text-red-500">*</span>
                                   </label>
                                   <select
                                     value={auditItem.remedyPerson}
@@ -559,7 +631,10 @@ export default function ExceptionHandling() {
 
             <div className="mt-6 flex justify-end gap-3">
               <button
-                onClick={() => setActiveTab('list')}
+                onClick={() => {
+                  setActiveTab('list');
+                  setValidationErrors([]);
+                }}
                 className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 取消

@@ -7,7 +7,8 @@ interface StepItem {
   name: string;
   completed: boolean;
   icon: string;
-  details?: string[];
+  details: string[];
+  missingItems?: string[];
 }
 
 export default function TodayCheck() {
@@ -27,78 +28,129 @@ export default function TodayCheck() {
   }, [searchText]);
 
   const getSteps = (visit: VisitRecord): StepItem[] => {
-    const steps: StepItem[] = [
-      {
-        key: 'registration',
-        name: '挂号登记',
-        completed: visit.registration.completed,
-        icon: '📝',
-        details: visit.registration.completed
-          ? [
-              `操作人：${visit.registration.operator}`,
-              `时间：${visit.registration.time}`,
-            ]
-          : ['未完成挂号登记'],
-      },
-      {
-        key: 'payment',
-        name: '收费确认',
-        completed: visit.payment.completed,
-        icon: '💰',
-        details: visit.payment.completed
-          ? [
-              `金额：¥${visit.payment.amount}`,
-              `操作人：${visit.payment.operator}`,
-              `时间：${visit.payment.time}`,
-            ]
-          : ['未完成收费'],
-      },
-      {
-        key: 'treatment',
-        name: '治疗执行',
-        completed: visit.treatment.completed,
-        icon: '🦷',
-        details: visit.treatment.items.length > 0
-          ? [
-              ...visit.treatment.items.map(
-                (item) => `${item.name} x${item.quantity} ¥${item.price}`
-              ),
-              `医生：${visit.treatment.doctor || '未指派'}`,
-              `护士：${visit.treatment.nurse || '未指派'}`,
-              visit.treatment.startTime
-                ? `开始时间：${visit.treatment.startTime}`
-                : '未开始',
-              visit.treatment.endTime
-                ? `结束时间：${visit.treatment.endTime}`
-                : '未结束',
-            ]
-          : ['暂无治疗项目'],
-      },
-      {
-        key: 'nextAppointment',
-        name: '下次预约',
-        completed: visit.nextAppointment.completed,
-        icon: '📅',
-        details: visit.nextAppointment.completed
-          ? [
-              `日期：${visit.nextAppointment.date}`,
-              `时间：${visit.nextAppointment.time}`,
-              `内容：${visit.nextAppointment.content}`,
-            ]
-          : ['未预约下次就诊'],
-      },
-    ];
+    const steps: StepItem[] = [];
+
+    const registrationMissing: string[] = [];
+    if (!visit.registration.completed) {
+      registrationMissing.push('未完成挂号登记');
+    }
+    steps.push({
+      key: 'registration',
+      name: '挂号登记',
+      completed: visit.registration.completed,
+      icon: '📝',
+      details: visit.registration.completed
+        ? [
+            `操作人：${visit.registration.operator}`,
+            `时间：${visit.registration.time}`,
+          ]
+        : [],
+      missingItems: registrationMissing.length > 0 ? registrationMissing : undefined,
+    });
+
+    const paymentMissing: string[] = [];
+    if (!visit.payment.completed) {
+      paymentMissing.push('未完成收费');
+    }
+    steps.push({
+      key: 'payment',
+      name: '收费确认',
+      completed: visit.payment.completed,
+      icon: '💰',
+      details: visit.payment.completed
+        ? [
+            `金额：¥${visit.payment.amount}`,
+            `操作人：${visit.payment.operator}`,
+            `时间：${visit.payment.time}`,
+          ]
+        : [],
+      missingItems: paymentMissing.length > 0 ? paymentMissing : undefined,
+    });
+
+    const treatmentMissing: string[] = [];
+    const treatmentDetails: string[] = [];
+
+    if (visit.treatment.items.length > 0) {
+      visit.treatment.items.forEach((item) => {
+        treatmentDetails.push(`${item.name} x${item.quantity} ¥${item.price}`);
+      });
+    } else {
+      treatmentMissing.push('缺少治疗项目');
+    }
+
+    if (visit.treatment.doctor) {
+      treatmentDetails.push(`医生：${visit.treatment.doctor}`);
+    } else {
+      treatmentMissing.push('缺少医生信息');
+    }
+
+    if (visit.treatment.nurse) {
+      treatmentDetails.push(`护士：${visit.treatment.nurse}`);
+    } else {
+      treatmentMissing.push('缺少护士信息');
+    }
+
+    if (visit.treatment.startTime) {
+      treatmentDetails.push(`开始时间：${visit.treatment.startTime}`);
+    }
+    if (visit.treatment.endTime) {
+      treatmentDetails.push(`结束时间：${visit.treatment.endTime}`);
+    }
+
+    const treatmentCompleted =
+      visit.treatment.items.length > 0 &&
+      !!visit.treatment.doctor &&
+      !!visit.treatment.nurse;
+
+    steps.push({
+      key: 'treatment',
+      name: '治疗执行',
+      completed: treatmentCompleted,
+      icon: '🦷',
+      details: treatmentDetails,
+      missingItems: treatmentMissing.length > 0 ? treatmentMissing : undefined,
+    });
+
+    const appointmentMissing: string[] = [];
+    if (!visit.nextAppointment.completed) {
+      appointmentMissing.push('未预约下次就诊');
+    }
+    steps.push({
+      key: 'nextAppointment',
+      name: '下次预约',
+      completed: visit.nextAppointment.completed,
+      icon: '📅',
+      details: visit.nextAppointment.completed
+        ? [
+            `日期：${visit.nextAppointment.date}`,
+            `时间：${visit.nextAppointment.time}`,
+            `内容：${visit.nextAppointment.content}`,
+          ]
+        : [],
+      missingItems: appointmentMissing.length > 0 ? appointmentMissing : undefined,
+    });
+
     return steps;
   };
 
-  const getStatusTag = (status: VisitRecord['status']) => {
-    const config = {
-      pending: { text: '待就诊', color: 'bg-gray-100 text-gray-600' },
-      in_progress: { text: '治疗中', color: 'bg-blue-100 text-blue-700' },
-      completed: { text: '已完成', color: 'bg-green-100 text-green-700' },
-      abnormal: { text: '异常', color: 'bg-red-100 text-red-700' },
-    };
-    return config[status];
+  const isAllStepsCompleted = (visit: VisitRecord): boolean => {
+    const steps = getSteps(visit);
+    return steps.every((step) => step.completed);
+  };
+
+  const getStatusTag = (visit: VisitRecord) => {
+    const allCompleted = isAllStepsCompleted(visit);
+    if (allCompleted) {
+      return { text: '已完成', color: 'bg-green-100 text-green-700' };
+    }
+    const firstIncomplete = getFirstIncompleteStep(visit);
+    if (firstIncomplete === 0) {
+      return { text: '待就诊', color: 'bg-gray-100 text-gray-600' };
+    }
+    if (firstIncomplete <= 2) {
+      return { text: '治疗中', color: 'bg-blue-100 text-blue-700' };
+    }
+    return { text: '资料待补', color: 'bg-orange-100 text-orange-700' };
   };
 
   const getFirstIncompleteStep = (visit: VisitRecord): number => {
@@ -141,7 +193,7 @@ export default function TodayCheck() {
         <div className="flex-1 overflow-auto">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             {filteredVisits.map((visit) => {
-              const statusTag = getStatusTag(visit.status);
+              const statusTag = getStatusTag(visit);
               const firstIncomplete = getFirstIncompleteStep(visit);
               return (
                 <div
@@ -207,10 +259,10 @@ export default function TodayCheck() {
               </div>
               <span
                 className={`px-4 py-2 rounded-full text-sm font-medium ${
-                  getStatusTag(selectedVisit.status).color
+                  getStatusTag(selectedVisit).color
                 }`}
               >
-                {getStatusTag(selectedVisit.status).text}
+                {getStatusTag(selectedVisit).text}
               </span>
             </div>
 
@@ -247,7 +299,7 @@ export default function TodayCheck() {
                         {step.completed ? '✓' : step.icon}
                       </div>
                       <div className="flex-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <h4 className="font-bold text-gray-800">
                             {step.name}
                           </h4>
@@ -262,11 +314,23 @@ export default function TodayCheck() {
                             </span>
                           )}
                         </div>
-                        <ul className="mt-2 text-sm text-gray-600 space-y-1">
-                          {step.details?.map((detail, i) => (
-                            <li key={i}>• {detail}</li>
-                          ))}
-                        </ul>
+                        {step.details.length > 0 && (
+                          <ul className="mt-2 text-sm text-gray-600 space-y-1">
+                            {step.details.map((detail, i) => (
+                              <li key={i}>• {detail}</li>
+                            ))}
+                          </ul>
+                        )}
+                        {step.missingItems && step.missingItems.length > 0 && (
+                          <ul className="mt-2 text-sm text-red-600 space-y-1">
+                            {step.missingItems.map((item, i) => (
+                              <li key={i} className="flex items-center gap-1">
+                                <span>⚠️</span>
+                                <span>缺少：{item}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                     </div>
                     {index < getSteps(selectedVisit).length - 1 && (
@@ -281,7 +345,7 @@ export default function TodayCheck() {
               })}
             </div>
 
-            {selectedVisit.status !== 'completed' &&
+            {!isAllStepsCompleted(selectedVisit) &&
               getFirstIncompleteStep(selectedVisit) >= 0 && (
                 <div className="mt-6 p-4 bg-orange-100 border border-orange-300 rounded-lg">
                   <div className="flex items-center gap-2">
@@ -297,14 +361,17 @@ export default function TodayCheck() {
                         」环节
                       </p>
                       <p className="text-sm text-orange-600 mt-1">
-                        请尽快完成该环节，以确保患者就诊流程完整
+                        缺失项：
+                        {getSteps(selectedVisit)[
+                          getFirstIncompleteStep(selectedVisit)
+                        ].missingItems?.join('、')}
                       </p>
                     </div>
                   </div>
                 </div>
               )}
 
-            {selectedVisit.status === 'completed' && (
+            {isAllStepsCompleted(selectedVisit) && (
               <div className="mt-6 p-4 bg-green-100 border border-green-300 rounded-lg">
                 <div className="flex items-center gap-2">
                   <span className="text-2xl">✅</span>
@@ -313,7 +380,7 @@ export default function TodayCheck() {
                       所有环节已完成
                     </p>
                     <p className="text-sm text-green-600 mt-1">
-                      患者就诊资料完整，无需补正
+                      挂号、收费、治疗项目、医生、护士、下次预约均完整
                     </p>
                   </div>
                 </div>

@@ -1,9 +1,12 @@
-import { useState, useMemo } from 'react';
-import { mockHandoverItems, nurses } from '../data/mockData';
+import { useState, useMemo, useEffect } from 'react';
+import { mockHandoverItems } from '../data/mockData';
+import { loadFromStorage, saveToStorage, STORAGE_KEYS } from '../utils/storage';
 import type { HandoverItem } from '../types';
 
 export default function HandoverRecord() {
-  const [items, setItems] = useState<HandoverItem[]>(mockHandoverItems);
+  const [items, setItems] = useState<HandoverItem[]>(() =>
+    loadFromStorage(STORAGE_KEYS.HANDOVER_ITEMS, mockHandoverItems)
+  );
   const [showAddModal, setShowAddModal] = useState(false);
   const [newItem, setNewItem] = useState({
     type: '未补签' as HandoverItem['type'],
@@ -14,14 +17,16 @@ export default function HandoverRecord() {
   });
   const [currentUser] = useState('李护士');
 
+  useEffect(() => {
+    saveToStorage(STORAGE_KEYS.HANDOVER_ITEMS, items);
+  }, [items]);
+
   const stats = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
-    const todayItems = items.filter((item) => true);
     return {
-      total: todayItems.length,
-      pending: todayItems.filter((item) => !item.handled).length,
-      completed: todayItems.filter((item) => item.handled).length,
-      fromDayShift: todayItems.filter((item) => item.fromShift === '白班').length,
+      total: items.length,
+      pending: items.filter((item) => !item.handled).length,
+      completed: items.filter((item) => item.handled).length,
+      fromDayShift: items.filter((item) => item.fromShift === '白班').length,
     };
   }, [items]);
 
@@ -62,11 +67,11 @@ export default function HandoverRecord() {
     }
 
     const item: HandoverItem = {
-      id: `H${String(items.length + 1).padStart(3, '0')}`,
+      id: `H${String(Date.now()).slice(-8)}`,
       type: newItem.type,
       content: newItem.content,
       patientName: newItem.patientName,
-      visitId: `V${String(Date.now()).slice(-3)}`,
+      visitId: `V${String(Date.now()).slice(-8)}`,
       fromShift: new Date().getHours() < 17 ? '白班' : '晚班',
       createTime: new Date().toLocaleTimeString('zh-CN', {
         hour: '2-digit',
@@ -133,7 +138,7 @@ export default function HandoverRecord() {
       <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
           <div className="text-2xl font-bold text-gray-800">{stats.total}</div>
-          <div className="text-sm text-gray-500">今日事项总数</div>
+          <div className="text-sm text-gray-500">事项总数</div>
         </div>
         <div className="bg-white rounded-lg p-4 border border-red-200 shadow-sm">
           <div className="text-2xl font-bold text-red-600">{stats.pending}</div>
@@ -314,7 +319,7 @@ export default function HandoverRecord() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  患者姓名
+                  患者姓名 <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -328,7 +333,7 @@ export default function HandoverRecord() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  事项内容
+                  事项内容 <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   value={newItem.content}
